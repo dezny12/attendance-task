@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Classroom Attendance</title>
+<style>
+  :root{
+    --bg:#f6f8fb;
+    --card:#ffffff;
+    --accent:#2563eb;
+    --muted:#6b7280;
+    --success:#10b981;
+    --danger:#ef4444;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  body{margin:0;background:var(--bg);color:#111;}
+  .wrap{max-width:960px;margin:28px auto;padding:20px;}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  h1{font-size:20px;margin:0;}
+  .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:16px;}
+  .grid{display:grid;gap:12px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  label{font-size:13px;color:var(--muted);}
+  input[type="text"], input[type="date"], textarea, select {
+    padding:8px 10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px;
+    outline:none;background:transparent;
+  }
+  textarea{min-height:84px;resize:vertical;}
+  button{background:var(--accent);color:white;padding:8px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:600;}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid #dbeafe;}
+  button.danger{background:var(--danger);}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;}
+  table{width:100%;border-collapse:collapse;margin-top:12px;}
+  th, td{padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:14px;}
+  th{font-weight:700;color:var(--muted);font-size:13px;}
+  .small{font-size:13px;color:var(--muted);}
+  .actions{display:flex;gap:8px;align-items:center;}
+  .pill{padding:6px 8px;border-radius:999px;background:#f3f4f6;color:#111;font-size:13px;}
+  .empty{padding:18px;text-align:center;color:var(--muted);}
+  @media (max-width:640px){ .row{flex-direction:column;align-items:stretch;} header{flex-direction:column;align-items:flex-start;gap:6px;} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>📋 Classroom Attendance</h1>
+      <div class="small">Save sessions locally in your browser (localStorage). Export CSV when needed.</div>
+    </header>
+
+    <section class="card" id="session-creator">
+      <div class="grid">
+        <div class="row">
+          <div style="flex:1">
+            <label for="class-code">Class code</label><br>
+            <input id="class-code" type="text" placeholder="e.g. BIO101 or CS-202" />
+          </div>
+          <div>
+            <label for="session-date">Date</label><br>
+            <input id="session-date" type="date" />
+          </div>
+          <div style="min-width:160px;">
+            <label for="session-name">Session name (optional)</label><br>
+            <input id="session-name" type="text" placeholder="e.g. Lecture 3" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <label for="student-input">Add students (one per line)</label><br>
+            <textarea id="student-input" placeholder="Alice\nBob\nCharlie"></textarea>
+          </div>
+          <div style="min-width:180px;display:flex;flex-direction:column;gap:8px;">
+            <label class="small">Actions</label>
+            <div class="controls">
+              <button id="import-list">Import</button>
+              <button id="preset-sample" class="ghost">Load sample</button>
+              <button id="create-session" class="">Create & Open</button>
+            </div>
+            <div class="small">You can also add single students below after session is created.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="current-session" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:700" id="session-title"></div>
+          <div class="small" id="session-meta"></div>
+        </div>
+        <div class="actions">
+          <button id="save-session">Save</button>
+          <button id="export-csv" class="ghost">Export CSV</button>
+          <button id="delete-session" class="danger">Delete</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="new-student-name" type="text" placeholder="Add single student name or ID" style="flex:1;" />
+          <button id="add-student">Add</button>
+        </div>
+
+        <div id="students-area" style="margin-top:12px;">
+          <!-- student table will be injected here -->
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:700">Saved sessions</div>
+        <div class="small">Select class and session to load</div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="class-select" style="min-width:220px;">
+          <option value="">— Select class code —</option>
+        </select>
+
+        <select id="session-select" style="min-width:260px;">
+          <option value="">— Select session —</option>
+        </select>
+
+        <div class="controls">
+          <button id="load-session" class="ghost">Load</button>
+          <button id="clear-all" class="danger">Clear all saved</button>
+        </div>
+      </div>
+
+      <div id="no-sessions" class="empty" style="display:none;margin-top:10px;">
+        No saved sessions yet. Create one to get started.
+      </div>
+    </section>
+
+    <footer style="margin-top:12px;font-size:13px;color:var(--muted);text-align:center;">
+      Local-only demo — data stored in your browser's localStorage under key <code>attendance_store_v1</code>.
+    </footer>
+  </div>
+
+<script>
+(() => {
+  // Storage key
+  const STORAGE_KEY = 'attendance_store_v1';
+
+  // DOM
+  const classCodeEl = document.getElementById('class-code');
+  const dateEl = document.getElementById('session-date');
+  const sessionNameEl = document.getElementById('session-name');
+  const studentInputEl = document.getElementById('student-input');
+  const importBtn = document.getElementById('import-list');
+  const presetSample = document.getElementById('preset-sample');
+  const createBtn = document.getElementById('create-session');
+
+  const currentCard = document.getElementById('current-session');
+  const sessionTitle = document.getElementById('session-title');
+  const sessionMeta = document.getElementById('session-meta');
+  const studentsArea = document.getElementById('students-area');
+  const saveBtn = document.getElementById('save-session');
+  const exportBtn = document.getElementById('export-csv');
+  const deleteBtn = document.getElementById('delete-session');
+  const addStudentBtn = document.getElementById('add-student');
+  const newStudentName = document.getElementById('new-student-name');
+
+  const classSelect = document.getElementById('class-select');
+  const sessionSelect = document.getElementById('session-select');
+  const loadBtn = document.getElementById('load-session');
+  const clearAllBtn = document.getElementById('clear-all');
+  const noSessions = document.getElementById('no-sessions');
+
+  let store = {}; // loaded from localStorage
+  let current = null; // {classCode, date, name, students: [{id, name, present}]}
+
+  // helpers
+  function todayISO() {
+    const d = new Date();
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d - tzOffset).toISOString().slice(0,10);
+  }
+
+  function loadStore(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      store = raw ? JSON.parse(raw) : {};
+    } catch(e){
+      console.error('failed to load store', e);
+      store = {};
+    }
+  }
+
+  function saveStore(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    refreshClassSelect();
+  }
+
+  function refreshClassSelect(){
+    // populate classSelect and sessionSelect based on store
+    classSelect.innerHTML = '<option value="">— Select class code —</option>';
+    const codes = Object.keys(store).sort();
+    if(codes.length === 0){
+      noSessions.style.display = 'block';
+    } else {
+      noSessions.style.display = 'none';
+    }
+    codes.forEach(code => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = code + ' (' + Object.keys(store[code]).length + ')';
+      classSelect.appendChild(opt);
+    });
+    sessionSelect.innerHTML = '<option value="">— Select session —</option>';
+  }
+
+  function refreshSessionSelect(classCode){
+    sessionSelect.innerHTML = '<option value="">— Select session —</option>';
+    if(!classCode || !store[classCode]) return;
+    // sessions keyed by date
+    const dates = Object.keys(store[classCode]).sort().reverse();
+    dates.forEach(d => {
+      const sess = store[classCode][d];
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = `${d} ${sess.name ? '— ' + sess.name : ''}`;
+      sessionSelect.appendChild(opt);
+    });
+  }
+
+  function createSessionObj(classCode, date, name, studentsArr){
+    return {
+      classCode,
+      date,
+      name: name || '',
+      students: studentsArr.map((s,idx) => ({
+        id: 's' + (Date.now() + idx) ,
+        name: s.trim(),
+        present: false
+      }))
+    };
+  }
+
+  function openSession(obj){
+    current = JSON.parse(JSON.stringify(obj)); // clone
+    sessionTitle.textContent = `${current.classCode} — ${current.name || 'Session'}`;
+    sessionMeta.textContent = `Date: ${current.date} • ${current.students.length} students`;
+    renderStudents();
+    currentCard.style.display = 'block';
+  }
+
+  function renderStudents(){
+    if(!current) return;
+    if(current.students.length === 0){
+      studentsArea.innerHTML = '<div class="empty">No students yet — add some.</div>';
+      return;
+    }
+    const rows = current.students.map((st, idx) => {
+      const checked = st.present ? 'checked' : '';
+      return `
+        <tr data-id="${st.id}">
+          <td style="width:40px;text-align:center;">${idx+1}</td>
+          <td>${escapeHtml(st.name)}</td>
+          <td style="width:120px;text-align:center;">
+            <input type="checkbox" class="present-checkbox" ${checked} />
+          </td>
+          <td style="width:120px;text-align:center;">
+            <button class="remove-student ghost">Remove</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    studentsArea.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Student name / ID</th><th>Present</th><th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    // attach listeners
+    studentsArea.querySelectorAll('.present-checkbox').forEach((cb, i) => {
+      cb.addEventListener('change', (e) => {
+        current.students[i].present = e.target.checked;
+      });
+    });
+    studentsArea.querySelectorAll('.remove-student').forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        if(!confirm('Remove this student?')) return;
+        current.students.splice(i,1);
+        sessionMeta.textContent = `Date: ${current.date} • ${current.students.length} students`;
+        renderStudents();
+      });
+    });
+  }
+
+  function saveCurrentToStore(){
+    if(!current) return;
+    if(!store[current.classCode]) store[current.classCode] = {};
+    store[current.classCode][current.date] = current;
+    saveStore();
+    alert('Saved ✔');
+  }
+
+  function exportCurrentCSV(){
+    if(!current) return;
+    // CSV header
+    const lines = [
+      ['class_code', 'date', 'session_name', 'student_id', 'student_name', 'present'].join(',')
+    ];
+    current.students.forEach(s => {
+      const row = [escapeCsv(current.classCode), current.date, escapeCsv(current.name || ''),
+                   escapeCsv(s.id), escapeCsv(s.name), s.present ? '1' : '0'].join(',');
+      lines.push(row);
+    });
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${current.classCode.replace(/\s+/g,'_')}_${current.date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function deleteCurrent(){
+    if(!current) return;
+    if(!store[current.classCode] || !store[current.classCode][current.date]) {
+      alert('Session not found in storage.');
+      return;
+    }
+    if(!confirm(`Delete session ${current.classCode} — ${current.date}? This cannot be undone.`)) return;
+    delete store[current.classCode][current.date];
+    if(Object.keys(store[current.classCode]).length === 0) delete store[current.classCode];
+    saveStore();
+    current = null;
+    currentCard.style.display = 'none';
+    alert('Deleted.');
+  }
+
+  // Utilities
+  function escapeCsv(val){
+    if(val == null) return '';
+    const v = String(val);
+    if(v.includes(',') || v.includes('"') || v.includes('\n')) {
+      return '"' + v.replace(/"/g,'""') + '"';
+    }
+    return v;
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  // Event wiring
+  importBtn.addEventListener('click', () => {
+    const raw = studentInputEl.value.trim();
+    if(!raw){ alert('Paste or type names in the textarea first.'); return; }
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if(lines.length === 0){ alert('No valid student names found.'); return; }
+    // If current open, append; else create new temporary preview session
+    if(current){
+      lines.forEach(l => current.students.push({ id: 's' + (Date.now()+Math.random()), name: l, present:false }));
+      sessionMeta.textContent = `Date: ${current.date} • ${current.students.length} students`;
+      renderStudents();
+      studentInputEl.value = '';
+    } else {
+      // create a temporary session object and open it
+      const code = classCodeEl.value.trim() || 'UNSPECIFIED';
+      const date = dateEl.value || todayISO();
+      const name = sessionNameEl.value.trim();
+      const obj = createSessionObj(code, date, name, lines);
+      openSession(obj);
+      studentInputEl.value = '';
+    }
+  });
+
+  presetSample.addEventListener('click', () => {
+    studentInputEl.value = ['Alice Johnson','Bob Smith','Charlie Brown','Diana Lee','Evan Osei'].join('\n');
+  });
+
+  createBtn.addEventListener('click', () => {
+    const code = classCodeEl.value.trim() || 'UNSPECIFIED';
+    const date = dateEl.value || todayISO();
+    const name = sessionNameEl.value.trim();
+    let students = [];
+    const raw = studentInputEl.value.trim();
+    if(raw) students = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    const sessionObj = createSessionObj(code, date, name, students);
+    openSession(sessionObj);
+  });
+
+  saveBtn.addEventListener('click', () => {
+    saveCurrentToStore();
+  });
+
+  exportBtn.addEventListener('click', () => {
+    exportCurrentCSV();
+  });
+
+  deleteBtn.addEventListener('click', () => {
+    deleteCurrent();
+  });
+
+  addStudentBtn.addEventListener('click', () => {
+    const nm = newStudentName.value.trim();
+    if(!nm) return alert('Enter student name first.');
+    current.students.push({ id: 's' + (Date.now() + Math.random()), name: nm, present:false });
+    newStudentName.value = '';
+    sessionMeta.textContent = `Date: ${current.date} • ${current.students.length} students`;
+    renderStudents();
+  });
+
+  // session list interactions
+  classSelect.addEventListener('change', () => {
+    refreshSessionSelect(classSelect.value);
+  });
+
+  loadBtn.addEventListener('click', () => {
+    const code = classSelect.value;
+    const date = sessionSelect.value;
+    if(!code || !date) return alert('Choose class code and session first.');
+    const obj = store[code][date];
+    if(!obj) return alert('Session not found.');
+    openSession(obj);
+  });
+
+  sessionSelect.addEventListener('change', () => {
+    // nothing for now
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    if(!confirm('Clear all saved sessions from localStorage?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    store = {};
+    refreshClassSelect();
+    alert('All cleared.');
+  });
+
+  // init
+  (function init(){
+    loadStore();
+    refreshClassSelect();
+    dateEl.value = todayISO();
+  })();
+
+})();
+</script>
+</body>
+</html>
